@@ -48,19 +48,34 @@ public:
             myArray[i] = set;
         }
     }
-    //StaticDigitCountInteger& operator++()
-    //{
-    //    for (int i = 0; i < ourArraySize; ++i)
-    //    {
-    //        digitSetType set = myArray[i];
-    //        for (int k = 0; k < ourDigitPerSet; ++k)
-    //        {
-    //            set |= (anInteger % 10) << (k*ourBitPerDigit);
-    //            anInteger /= 10;
-    //        }
-    //        myArray[i] = set;
-    //    }
-    //}
+    StaticDigitCountInteger& operator++()
+    {
+        for (int i = 0; i < ourArraySize; ++i)
+        {
+            digitSetType set = myArray[i];
+            digitSetType res = 0;
+            digitSetType carry = digitSetType(1);
+            for (int k = 0; k < ourDigitPerSet; ++k)
+            {
+                sum = set & 15 + carry;
+                set >>= ourBitPerDigit;
+                if (sum>10)
+                {
+                    carry = digitSetType(1);
+                    sum -= 10;
+                }
+                else
+                {
+                    carry = digitSetType(0);
+                }
+                res |= sum << ((ourDigitPerSet - 1) * ourBitPerDigit);
+                res >>= ourBitPerDigit;
+            }
+            myArray[i] = res;
+            if (carry == digitSetType(0))
+                break;
+        }
+    }
 
     unsigned int digitAt(unsigned int anIndex)
     {
