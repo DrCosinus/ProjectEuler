@@ -6,8 +6,6 @@
 #include <memory>
 #include <vector>
 #include <iostream>
-//#include <ostream>
-//#include <type_traits>
 
 namespace console
 {
@@ -59,9 +57,15 @@ public:
 private:
     ourArrayType myArray;
 public:
-    // For now, I disable the copy constructor and the copy assignment operator to fail to compile if one uses one of them by mistake.
+    // I disable the copy constructor and the copy assignment operator to fail to compile if one uses one of them by mistake.
     StaticDigitCountInteger(const StaticDigitCountInteger&) = delete; // no copy constructor
     StaticDigitCountInteger& operator=(const StaticDigitCountInteger&) = delete; // no copy assignment
+
+    // So I provide a method to explicitly copy a number if this is intentional
+    void copy(const StaticDigitCountInteger& aSourceNumber)
+    {
+        std::copy(begin(aSourceNumber.myArray), end(aSourceNumber.myArray), begin(myArray));
+    }
 
     StaticDigitCountInteger()
     {
@@ -188,7 +192,34 @@ public:
             }
             myArray[i] = res;
         }
+        assert(carry == 0); // check for overflow
         return *this;
+    }
+
+    static void mul(const StaticDigitCountInteger& aNumber, unsigned int aMultiplier, StaticDigitCountInteger& result)
+    {
+        digitSetType carry = 0;
+        for (int i = 0; i < ourArraySize; ++i)
+        {
+            digitSetType op = aNumber.myArray[i];
+            digitSetType res = 0;
+            for (int j = 0; j < ourDigitPerSet; ++j)
+            {
+                digitSetType sum = getDigitFromSetAt(op, j) * aMultiplier + carry;
+                if (sum < 10)
+                {
+                    carry = 0;
+                }
+                else
+                {
+                    carry = sum / 10;
+                    sum -= 10;
+                }
+                res |= sum << (ourBitPerDigit * j);
+            }
+            result.myArray[i] = res;
+        }
+        assert(carry == 0); // check for overflow
     }
 
     bool divisibleBy5() const
@@ -211,9 +242,38 @@ public:
         return (sum % 3) == 0;
     }
 
+    unsigned int digitMask()
+    {
+        unsigned int mask = 0;
+        bool zeros = false; // for insignificant zeros management
+
+        for (int i = 0; i < ourArraySize; ++i)
+        {
+            auto set = myArray[i];
+
+            for (unsigned int k = 0; k < ourDigitPerSet; ++k)
+            {
+                auto digit = getDigitFromSetAt(set, k);
+                if (digit)
+                {
+                    if (zeros)
+                    {
+                        mask |= 1;
+                        zeros = false;
+                    }
+                    mask |= 1 << digit;
+                }
+                else
+                {
+                    zeros = !mask & 1;
+                }
+            }
+        }
+        return mask;
+    }
+
     static void DebugInfos()
     {
-        //console::writeLine("sizeof()    = ", sizeof(StaticDigitCountInteger));
         console::writeLine("DigitCount  = ", ourDigitCount);
         console::writeLine("SetByteCount= ", ourSetByteCount);
         console::writeLine("SetBitCount = ", ourSetBitCount);
@@ -223,8 +283,6 @@ public:
         console::writeLine();
     }
 };
-
-
 
 template <unsigned int ourDigitCount, typename digitSetType>
 std::ostream& operator<<(std::ostream& os, const StaticDigitCountInteger<ourDigitCount, digitSetType>& anInteger)
@@ -249,7 +307,7 @@ namespace profile
         duration_type   myDuration;
         bool            myIsRunning;
     public:
-        stopwatch(bool anAutoStart = false) : myIsRunning(false)
+        stopwatch(bool anAutoStart = true) : myIsRunning(false)
         {
             if (anAutoStart)
                 start();
@@ -305,7 +363,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
     // #001
     {
-        profile::stopwatch sw(true);
+        console::writeLine("PROBLEM #001");
+        profile::stopwatch sw;
         StaticDigitCountInteger<4> big(0);
         StaticDigitCountInteger<4> sum(0);
         for (int i = 0; i < 1000; ++i, ++big)
@@ -319,11 +378,13 @@ int _tmain(int argc, _TCHAR* argv[])
         auto time = toMilli(sw.elapsed());
         console::writeLine("sum  = ", sum);
         console::writeLine("time = ", time, "ms");
+        console::writeLine("-----------------------------------------------");
     }
 
     // #025
     {
-        profile::stopwatch sw(true);
+        console::writeLine("PROBLEM #025");
+        profile::stopwatch sw;
         StaticDigitCountInteger<1000> a(1);
         StaticDigitCountInteger<1000> b(1);
         unsigned int n = 2;
@@ -337,71 +398,45 @@ int _tmain(int argc, _TCHAR* argv[])
         auto time = toMilli(sw.elapsed());
         console::writeLine("n    = ", n);
         console::writeLine("time = ", time, "ms");
+        console::writeLine("-----------------------------------------------");
     }
 
-    // #038 (not resolved yet: for now only counting permutation of 1 to 9 number)
+    // #038
     {
-        profile::stopwatch sw(true);
-        int n = 0;
-        for (int i0 = 1; i0 <= 9; ++i0)
+        // 918273645 is a trivial solution (given by the statement)
+        // so the largest solution is greater or equal to it,
+        // this reduces drastically the range of the solutions
+        //
+        // let say that p is the number of digits of the first number
+        // obviously p is 2, 3 or 4 because the first number starts per 9 so second, third and fourth numbers have p+1 digits
+        //
+        // if p = 2,    first number have 2 digits, first and second have 5 (=2+3), first, second, and third have 8 (=2+3+3) and first, second, third and fourth will have 11 (=2+3+3+3) digits.
+        //              So there is no solution with p=2.
+        // if p = 3,    first number have 3 digits, first and second have 7 (=3+4) and first, second, and third have 11 (=3+4+4) digits.
+        //              So there is no solution with p=3.
+        // if p = 4,    first number have 4 digits, first and second have 9 (=4+5).  
+        //              THERE MAY BE A SOLUTION with p=4 :)
+        console::writeLine("PROBLEM #038");
+
+        profile::stopwatch sw;
+
+        StaticDigitCountInteger<5> a(9123), b, solution_a, solution_b;
+        for (int i = 9123; i <= 9876; i++)
         {
-            int mask0 = 1 << i0;
-            for (int i1 = 1; i1 <= 9; ++i1)
+            StaticDigitCountInteger<5>::mul(a, 2, b);
+            if ((a.digitMask() | b.digitMask()) == 0x3FE)
             {
-                //if (mask0 & (1 << i1))
-                if (i0 != i1)
-                    continue;
-                int mask1 = mask0 | (1 << i1);
-                for (int i2 = 1; i2 <= 9; ++i2)
-                {
-                    //if (mask1 & (1 << i2))
-                    if (i2 != i1 && i2 != i0)
-                        continue;
-                    int mask2 = mask1 | (1 << i2);
-                    for (int i3 = 1; i3 <= 9; ++i3)
-                    {
-                        if (mask2 & (1 << i3))
-                            continue;
-                        int mask3 = mask2 | (1 << i3);
-                        for (int i4 = 1; i4 <= 9; ++i4)
-                        {
-                            if (mask3 & (1 << i4))
-                                continue;
-                            int mask4 = mask3 | (1 << i4);
-                            for (int i5 = 1; i5 <= 9; ++i5)
-                            {
-                                if (mask4 & (1 << i5))
-                                    continue;
-                                int mask5 = mask4 | (1 << i5);
-                                for (int i6 = 1; i6 <= 9; ++i6)
-                                {
-                                    if (mask5 & (1 << i6))
-                                        continue;
-                                    int mask6 = mask5 | (1 << i6);
-                                    for (int i7 = 1; i7 <= 9; ++i7)
-                                    {
-                                        if (mask6 & (1 << i7))
-                                            continue;
-                                        int mask7 = mask6 | (1 << i7);
-                                        for (int i8 = 1; i8 <= 9; ++i8)
-                                        {
-                                            if (mask7 & (1 << i8))
-                                                continue;
-                                            //int mask8 = mask7 | (1 << i8);
-                                            ++n;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                solution_a.copy(a);
+                solution_b.copy(b);
             }
+            a++;
         }
+
         sw.stop();
         auto time = toMilli(sw.elapsed());
-        console::writeLine("n    = ", n);
-        console::writeLine("time = ", time, "ms");
+        console::writeLine("solution = ", solution_a, solution_b);
+        console::writeLine("time     = ", time, "ms");
+        console::writeLine("-----------------------------------------------");
     }
     return 0;
 }
