@@ -5,51 +5,81 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <sstream>
+#include <iostream>
 
+template<typename T>
 class Model abstract
-{
-protected:
-    struct protected_tag {};
-};
-
-class ModelLight : public Model
 {
     template<typename T>
     friend void With(std::function<void(T&)> aFunction);
 
-    static std::vector<ModelLight> ourInstances;
-
-    float myRadius;
-
-    ModelLight(const protected_tag &, float aRadius) : Model(), myRadius(aRadius)
+    std::string myName;
+protected:
+    struct protected_tag {};
+    Model(const protected_tag &, std::string aName) : myName(aName)
     {
     }
-    ModelLight(const protected_tag & aTag) : ModelLight(aTag, 0.0f)
+
+    std::string combineName(char* myPrefix, unsigned int myIndex)
     {
+        std::ostringstream stringBuilder;
+        stringBuilder << myPrefix;
+        stringBuilder.width(3);
+        stringBuilder.fill('0');
+        //stringBuilder << std::hex;
+        stringBuilder << myIndex;
+        return stringBuilder.str();
     }
+
+    static std::vector<std::shared_ptr<T>> ourInstances;
+    static unsigned int ourNextInstanceIndex;
 
 public:
-    static std::vector<ModelLight>::const_reference Create(float aRadius)
+    const std::string& getName() { return myName; }
+
+    template<typename... Ts>
+    static std::shared_ptr<T>& Create(Ts... args)
     {
-        ourInstances.emplace_back(protected_tag{}, aRadius);
+        ourInstances.emplace_back(std::make_shared<T>(protected_tag{}, args...));
         return ourInstances.back();
     }
 };
 
-//std::vector<ModelLight> ModelLight::ourInstances;
+template<typename T>
+unsigned int Model<T>::ourNextInstanceIndex = 0;
 
-class ModelRenderer : public Model
+template<typename T>
+std::vector<std::shared_ptr<T>> Model<T>::ourInstances;
+
+class ModelLight : public Model<ModelLight>
 {
-    template<typename T>
-    friend void With(std::function<void(T&)> aFunction);
-
-    static std::vector<ModelRenderer> ourInstances;
 public:
+    float myRadius;
+
+public:
+    ModelLight(const protected_tag & aProtectedTag, float aRadius) : Model(aProtectedTag, combineName("Light", ourNextInstanceIndex++)), myRadius(aRadius)
+    {
+    }
+    ModelLight(const protected_tag & aProtectedTag) : ModelLight(aProtectedTag, 0.0f)
+    {
+    }
+    //ModelLight(const ModelLight&) = delete;
+
+    //static std::shared_ptr<ModelLight>& Create(float aRadius)
+    //{
+    //    ourInstances.emplace_back(std::make_shared<ModelLight>(protected_tag{}, aRadius));
+    //    return ourInstances.back();
+    //}
 };
 
-//std::vector<ModelLight> ModelLight::ourInstances;
-
-
+class ModelRenderer : public Model<ModelRenderer>
+{
+public:
+    ModelRenderer(const protected_tag & aProtectedTag) : Model(aProtectedTag, combineName("Renderer", ourNextInstanceIndex++))
+    {
+    }
+};
 
 
 template<typename T>
@@ -57,19 +87,39 @@ void With(std::function<void (T&)> aFunction)
 {
     for (auto& i : T::ourInstances)
     {
-        aFunction(i);
+        aFunction(*i);
     }
-}
-
-void yoyo(ModelLight& aLight)
-{
 }
 
 void Test()
 {
-    
+    std::shared_ptr<ModelLight> l = ModelLight::Create(5.0f);
+    ModelLight::Create(17.0f);
+    l->myRadius = 409.0f;
+    ModelRenderer::Create();
+
     With<ModelLight>([](ModelLight& aLight)
     {
+        std::cout << "Light: " << aLight.getName() << ", myRadius = " << aLight.myRadius << std::endl;
     });
-    With<ModelLight>(yoyo);
+
+    With<ModelRenderer>([](ModelRenderer& aRenderer)
+    {
+        std::cout << "Renderer: " << aRenderer.getName() << std::endl;
+    });
+}
+
+template<typename... Ts>
+class AutoRun
+{
+public:
+    AutoRun(std::function<void (Ts...)> F, Ts... args)
+    {
+        F(args...);
+    }
+};
+
+namespace
+{
+    AutoRun<> _(Test);
 }
