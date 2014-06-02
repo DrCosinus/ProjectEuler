@@ -16,6 +16,9 @@
     <Filter Include="GameFramework">
       <UniqueIdentifier>{5395439c-dc14-457c-b8c3-3da833f7cc86}</UniqueIdentifier>
     </Filter>
+    <Filter Include="GameFramework\Models">
+      <UniqueIdentifier>{d24a803c-f205-4d18-bf71-39240fea74e7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
