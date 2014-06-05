@@ -30,6 +30,9 @@
     <ClInclude Include="..\GameFramework\Model.h">
       <Filter>GameFramework</Filter>
     </ClInclude>
+    <ClInclude Include="..\GameFramework\ClassDef.h">
+      <Filter>GameFramework</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

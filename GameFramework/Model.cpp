@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "Model.h"
 
+#include "ClassDef.h"
+
 #include <vector>
 #include <functional>
 #include <memory>
