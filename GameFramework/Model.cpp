@@ -266,7 +266,22 @@ void Test()
     //    << " "
     //    << Model::Light::info().size
     //    << std::endl;
+    std::cout 
+        << ClassInfo<plop>::ourName
+        << " -+*#*+- "
+        << typeid(plop).raw_name()
+        << std::endl;
 
+    for (const auto& i : ClassInfo<plop>::ourFieldInfos)
+    {
+        std::cout
+            << "    "
+            << i.myName
+            << ", offset=" << i.myOffset
+            << ", size=" << i.mySize
+            << std::endl;
+
+    }
 
     auto l = Model::Light::Create(5.0f);
     auto l2 = Model::Light::Create(17.0f);
