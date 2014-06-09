@@ -279,6 +279,7 @@ void Test()
             << i.myName
             << ", offset=" << i.myOffset
             << ", size=" << i.mySize
+            //<< ", type=" << typeid(decltype(i)::type).name()
             << std::endl;
 
     }
@@ -313,7 +314,7 @@ class AutoRun
 public:
     AutoRun(std::function<void (Ts...)> F, Ts... args)
     {
-        F(args...);
+        F(args...); 
     }
 };
 

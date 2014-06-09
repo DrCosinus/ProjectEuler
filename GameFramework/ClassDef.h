@@ -1,5 +1,6 @@
 // http://accu.org/index.php/journals/428
 // http://accu.org/index.php/journals/421
+// http://www.vollmann.com/en/pubs/meta/meta/meta.html
 /*
 #include <string>
 #include <vector>
