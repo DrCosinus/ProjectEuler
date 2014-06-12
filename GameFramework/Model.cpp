@@ -323,12 +323,12 @@ namespace
 {
     AutoRun<> _(Test);
 }
-
+//#include <type_traits>
 namespace Object
 {
     enum class ID
     {
-        Light
+        Light = 159
     };
 
     class Model abstract
@@ -348,10 +348,13 @@ namespace Object
 
     class Light : public Model
     {
+    public:
         static const ID ourId = ID::Light;
+        static const char* ourName;
+    //private:
         float myIntensity;
     public:
-        Light(const protected_tag&, std::string&& aName, float anIntensity) : Model(protected_tag{}, std::forward<std::string>(aName)), myIntensity(anIntensity) 
+        Light(/*const protected_tag&, std::string&& aName,*/ float anIntensity) : Model(protected_tag{}, "xxx" /*std::forward<std::string>(aName)*/), myIntensity(anIntensity) 
         {
         }
         Light() = delete;
@@ -360,38 +363,52 @@ namespace Object
         Light& operator=(const Light&) = delete;
         Light& operator=(Light&&) = delete;
     };
+    const char* Light::ourName = "Light";
 
     typedef std::tuple<Light> classes;
 
     template<typename T, ID id>
     struct class_from_id
     {
-        using result = nullptr_t;
+        typedef nullptr_t type;
     };
 
-    // pas fini
     template<typename First, typename... Others, ID id>
-    struct class_from_id<std::tupple<First, Others...>>
+    struct class_from_id<std::tuple<First, Others...>, id>
     {
-        using result = nullptr_t;
+        typedef typename std::conditional<First::ourId==id, First, typename class_from_id<std::tuple<Others...>, id>::type>::type type;
     };
+
+    template<ID id>
+    struct class_from_id<std::tuple<>, id>
+    {
+        typedef nullptr_t type;
+    };
+
 
     template<const ID anId, typename... Ts>
     auto Create(Ts... someParameters)
     {
-        typedef typename class_from_id<classes, anId>::result type;
-        return new type{ someParameters... };
+        typedef typename class_from_id<classes, anId>::type type;
+        return std::make_shared<type>( someParameters... );
     }
-    template<typename T, typename... Ts>
-    auto Create(Ts... someParameters)
-    {
-        return new T(someParameters...);
-    }
+    //template<typename T, typename... Ts>
+    //auto Create(Ts... someParameters)
+    //{
+    //    return new T(someParameters...);
+    //}
 }
 
 void NewTest()
 {
     //auto light = Object::Create<Model::Light>("Light", 5.0f);
-    //auto lightX = Object::Create<Object::ID::Light>(5.0f);
-    auto plop = Object::class_from_id<Object::classes, Object::ID::Light>::result::ourId;
+    auto lightX = Object::Create<Object::ID::Light>(5.0f);
+    
+    auto plop = Object::class_from_id<Object::classes, Object::ID::Light>::type::ourId;
+    std::cout << "plop " << (int)plop << " " << Object::class_from_id<Object::classes, Object::ID::Light>::type::ourName << " " << lightX->myIntensity << std::endl;
+}
+
+namespace _
+{
+    AutoRun<> _(NewTest);
 }
