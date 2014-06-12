@@ -86,3 +86,4 @@ CLASSINFO_FIELDINFO_END
 
 #undef _type
 _type lol;
+

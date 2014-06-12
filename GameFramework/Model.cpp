@@ -170,6 +170,7 @@ namespace Model
         Light(const protected_tag& aProtectedTag, std::string&& aName, float anIntensity) : Model(aProtectedTag, std::forward<std::string>(aName)), myIntensity(anIntensity)
         {
         }
+        Light(std::string&& aName, float anIntensity) : Light(protected_tag{}, std::forward<std::string>(aName), anIntensity) {}
     };
     IMPLEMENT_MODEL(Light)
 
@@ -321,4 +322,76 @@ public:
 namespace
 {
     AutoRun<> _(Test);
+}
+
+namespace Object
+{
+    enum class ID
+    {
+        Light
+    };
+
+    class Model abstract
+    {
+        std::string myName;
+
+    protected:
+        struct protected_tag {};
+    protected:
+        Model(const protected_tag&, std::string&& aName) : myName(aName)
+        {
+        }
+    public:
+        const std::string& name() const { return myName; }
+        void name(const std::string& aName) { myName = aName; }
+    };
+
+    class Light : public Model
+    {
+        static const ID ourId = ID::Light;
+        float myIntensity;
+    public:
+        Light(const protected_tag&, std::string&& aName, float anIntensity) : Model(protected_tag{}, std::forward<std::string>(aName)), myIntensity(anIntensity) 
+        {
+        }
+        Light() = delete;
+        Light(const Light&) = delete;
+        Light(Light&&) = delete;
+        Light& operator=(const Light&) = delete;
+        Light& operator=(Light&&) = delete;
+    };
+
+    typedef std::tuple<Light> classes;
+
+    template<typename T, ID id>
+    struct class_from_id
+    {
+        using result = nullptr_t;
+    };
+
+    // pas fini
+    template<typename First, typename... Others, ID id>
+    struct class_from_id<std::tupple<First, Others...>>
+    {
+        using result = nullptr_t;
+    };
+
+    template<const ID anId, typename... Ts>
+    auto Create(Ts... someParameters)
+    {
+        typedef typename class_from_id<classes, anId>::result type;
+        return new type{ someParameters... };
+    }
+    template<typename T, typename... Ts>
+    auto Create(Ts... someParameters)
+    {
+        return new T(someParameters...);
+    }
+}
+
+void NewTest()
+{
+    //auto light = Object::Create<Model::Light>("Light", 5.0f);
+    //auto lightX = Object::Create<Object::ID::Light>(5.0f);
+    auto plop = Object::class_from_id<Object::classes, Object::ID::Light>::result::ourId;
 }
