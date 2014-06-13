@@ -247,11 +247,27 @@ namespace Model
 
 
 
-//constexpr int c_strcmp(const char* l, const char* r)
-//{
-//    return (*l == *r) ? (*l == '\0' ? 0 : c_strcmp(l + 1, r + 1)) : *l - *r;
-//}
+constexpr int static_strcmp(const char* l, const char* r)
+{
+    return (*l == *r) ? (*l == '\0' ? 0 : static_strcmp(l + 1, r + 1)) : *l - *r;
+}
 //typedef std::tuple<Model::OmniLight, Model::Light, Model::Renderer> ModelTypes;
+
+//class ConstString
+//{
+//    const char* s;
+//    const int n;
+//public:
+//    constexpr ConstString(const char* s1, int n1) : s(s1), n(n1 - 1){};
+//
+//    constexpr char operator[](int j)
+//    {
+//        return (j < 0 || j >= n ? throw "ERROR: ConstString index out of bounds" : s[j]);
+//    }
+//    constexpr int size() { return n; }
+//    constexpr const char* c_str() { return s; }
+//    //operator std::string() const { return std::string(s, n); }  // not a constexpr operator  
+//};
 
 void Test()
 {
@@ -324,6 +340,8 @@ namespace
     AutoRun<> _(Test);
 }
 //#include <type_traits>
+#include <array>
+//#include <cstddef>
 namespace Object
 {
     enum class ID
@@ -331,15 +349,70 @@ namespace Object
         Light = 159
     };
 
+    // c'est ModelDeclaration qui contient la structure du Model
+   
+    enum class FieldType
+    {
+        Integer,
+        Float,
+        String,
+    };
+
+    template<typename T>
+    struct FieldTypeOf;
+
+    template<>
+    struct FieldTypeOf < int >
+    {
+        static const FieldType value = FieldType::Integer;
+    };
+
+    template<>
+    struct FieldTypeOf < float >
+    {
+        static const FieldType value = FieldType::Float;
+    };
+
+    struct FieldDeclaration
+    {
+        std::string myName;
+        FieldType myType;
+        std::size_t myOffset;
+        std::size_t mySize;
+        bool myIsPtr;
+    };
+
+    template<std::size_t N>
+    struct FieldArrayDeclaration : public FieldDeclaration
+    {
+        const static std::size_t myRank = N;
+        std::array<std::size_t, N> myDimensions; // vide si ça n'est pas un tableau
+    };
+
+    class ModelDeclaration
+    {
+        const std::vector<FieldDeclaration>& myFields;
+    public:
+        ModelDeclaration(const std::vector<FieldDeclaration>& someFieldDeclarations) :
+            myFields(someFieldDeclarations)
+        {
+        }
+    };
+
+
     class Model abstract
     {
         std::string myName;
+
+        template<typename T>
+        friend struct FieldTypeOf;
 
     protected:
         struct protected_tag {};
     protected:
         Model(const protected_tag&, std::string&& aName) : myName(aName)
         {
+            //myModelDeclaration = std::make_shared<ModelDeclaration>();
         }
     public:
         const std::string& name() const { return myName; }
@@ -348,13 +421,20 @@ namespace Object
 
     class Light : public Model
     {
+        const ModelDeclaration& myModelDeclaration;
+        static std::vector<FieldDeclaration> ourFieldDeclarations;
     public:
         static const ID ourId = ID::Light;
         static const char* ourName;
-    //private:
+
+    protected:
         float myIntensity;
+
     public:
-        Light(/*const protected_tag&, std::string&& aName,*/ float anIntensity) : Model(protected_tag{}, "xxx" /*std::forward<std::string>(aName)*/), myIntensity(anIntensity) 
+        Light(float anIntensity) : 
+            Model(protected_tag{}, "xxx"), 
+            myModelDeclaration(Light::ourFieldDeclarations),
+            myIntensity(anIntensity) 
         {
         }
         Light() = delete;
@@ -365,22 +445,81 @@ namespace Object
     };
     const char* Light::ourName = "Light";
 
+#define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  { #_FIELD_NAME_, FieldTypeOf<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value, offsetof(_CLASS_NAME_, _FIELD_NAME_), sizeof(_CLASS_NAME_::_FIELD_NAME_), std::is_pointer<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value }
+
+    std::vector<FieldDeclaration> Light::ourFieldDeclarations =
+    {
+        //{ "myIntensity", FieldType::Integer, 0, 4, false }
+        //{ "myIntensity", FieldTypeOf<decltype(Light::myIntensity)>::value, 0, 4, false }
+        //{ "myIntensity", FieldTypeOf<decltype(Light::myIntensity)>::value, offsetof(Light, myIntensity), 4, false }
+        //{ "myIntensity", FieldTypeOf<decltype(Light::myIntensity)>::value, offsetof(Light, myIntensity), sizeof(Light::myIntensity), std::is_pointer<decltype(Light::myIntensity)>::value }
+        DECLARE_FIELD(Light, myIntensity)
+    };
+
+    class OmniLight : public Light
+    {
+        //DECLARE_MODEL(OmniLight, Light)
+        //DECLARE_MODEL_VARIABLE(float, myRadius);
+        const ModelDeclaration& myModelDeclaration;
+        static const char* ourName;
+        static std::vector<FieldDeclaration> ourFieldDeclarations;
+
+        float myRadius;
+    public:
+        OmniLight(float anIntensity, float aRadius) : 
+            Light(anIntensity), 
+            myModelDeclaration(OmniLight::ourFieldDeclarations),
+            myRadius(aRadius)
+        {
+        }
+    };
+
+    std::vector<FieldDeclaration> OmniLight::ourFieldDeclarations =
+    {
+        //{ "myIntensity", FieldType::Integer, 0, 4, false }
+        //{ "myIntensity", FieldTypeOf<decltype(Light::myIntensity)>::value, 0, 4, false }
+        //{ "myIntensity", FieldTypeOf<decltype(Light::myIntensity)>::value, offsetof(Light, myIntensity), 4, false }
+        //{ "myIntensity", FieldTypeOf<decltype(Light::myIntensity)>::value, offsetof(Light, myIntensity), sizeof(Light::myIntensity), std::is_pointer<decltype(Light::myIntensity)>::value }
+        DECLARE_FIELD(OmniLight, myIntensity),
+        DECLARE_FIELD(OmniLight, myRadius)
+    };
+
+    /*
     typedef std::tuple<Light> classes;
 
     template<typename T, ID id>
-    struct class_from_id
+    struct from_id
     {
         typedef nullptr_t type;
     };
 
     template<typename First, typename... Others, ID id>
-    struct class_from_id<std::tuple<First, Others...>, id>
+    struct from_id<std::tuple<First, Others...>, id>
     {
-        typedef typename std::conditional<First::ourId==id, First, typename class_from_id<std::tuple<Others...>, id>::type>::type type;
+        typedef typename std::conditional<First::ourId==id, First, typename from_id<std::tuple<Others...>, id>::type>::type type;
     };
 
     template<ID id>
-    struct class_from_id<std::tuple<>, id>
+    struct from_id<std::tuple<>, id>
+    {
+        typedef nullptr_t type;
+    };
+
+
+    template<typename T, const char* name>
+    struct from_name;
+    //{
+    //    typedef nullptr_t type;
+    //};
+
+    template<typename First, typename... Others, const char* name>
+    struct from_name<std::tuple<First, Others...>, name>
+    {
+        typedef typename std::conditional< !static_strcmp(First::ourName, name), First, typename from_name<std::tuple<Others...>, name>::type>::type type;
+    };
+
+    template<const char* name>
+    struct from_name<std::tuple<>, name>
     {
         typedef nullptr_t type;
     };
@@ -389,9 +528,16 @@ namespace Object
     template<const ID anId, typename... Ts>
     auto Create(Ts... someParameters)
     {
-        typedef typename class_from_id<classes, anId>::type type;
+        typedef typename from_id<classes, anId>::type type;
         return std::make_shared<type>( someParameters... );
     }
+
+    template<typename... Ts>
+    auto Create(const char* name, Ts... someParameters)
+    {
+        typedef typename from_name<classes, name>::type type;
+        return std::make_shared<type>(someParameters...);
+    }*/
     //template<typename T, typename... Ts>
     //auto Create(Ts... someParameters)
     //{
@@ -402,13 +548,28 @@ namespace Object
 void NewTest()
 {
     //auto light = Object::Create<Model::Light>("Light", 5.0f);
-    auto lightX = Object::Create<Object::ID::Light>(5.0f);
+    //auto lightX = Object::Create<Object::ID::Light>(5.0f);
+    //auto lightY = Object::Create("Light", 5.0f);
     
-    auto plop = Object::class_from_id<Object::classes, Object::ID::Light>::type::ourId;
-    std::cout << "plop " << (int)plop << " " << Object::class_from_id<Object::classes, Object::ID::Light>::type::ourName << " " << lightX->myIntensity << std::endl;
+    //auto plop = Object::from_id<Object::classes, Object::ID::Light>::type::ourId;
+    //std::cout << "plop " << (int)plop << " " << Object::from_id<Object::classes, Object::ID::Light>::type::ourName << " " << lightX->myIntensity << std::endl;
+    //std::declval
+
+    auto l = new Object::Light(42.7f);
+
+    std::cout << "kilt " 
+        << "name=" << l->ourFieldDeclarations[0].myName 
+        << ", offset=" << l->ourFieldDeclarations[0].myOffset
+        << ", size=" << l->ourFieldDeclarations[0].mySize
+        << ", is_ptr=" << l->ourFieldDeclarations[0].myIsPtr
+        << ", type=" << (int)l->ourFieldDeclarations[0].myType
+        << std::endl;
 }
 
 namespace _
 {
     AutoRun<> _(NewTest);
 }
+
+// Hidden in plain sight
+// Tower fall
