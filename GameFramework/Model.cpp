@@ -351,6 +351,8 @@ namespace Object
 
     // c'est ModelDeclaration qui contient la structure du Model
    
+
+    // voir: http://www.codeproject.com/Articles/318690/C-Non-intrusive-enum-class-with-reflection-supp
     enum class FieldType
     {
         Integer,
@@ -422,8 +424,8 @@ namespace Object
     class Light : public Model
     {
         const ModelDeclaration& myModelDeclaration;
-        static std::vector<FieldDeclaration> ourFieldDeclarations;
     public:
+        static const std::vector<FieldDeclaration> ourFieldDeclarations;
         static const ID ourId = ID::Light;
         static const char* ourName;
 
@@ -447,7 +449,7 @@ namespace Object
 
 #define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  { #_FIELD_NAME_, FieldTypeOf<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value, offsetof(_CLASS_NAME_, _FIELD_NAME_), sizeof(_CLASS_NAME_::_FIELD_NAME_), std::is_pointer<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value }
 
-    std::vector<FieldDeclaration> Light::ourFieldDeclarations =
+    const std::vector<FieldDeclaration> Light::ourFieldDeclarations =
     {
         //{ "myIntensity", FieldType::Integer, 0, 4, false }
         //{ "myIntensity", FieldTypeOf<decltype(Light::myIntensity)>::value, 0, 4, false }
@@ -462,7 +464,7 @@ namespace Object
         //DECLARE_MODEL_VARIABLE(float, myRadius);
         const ModelDeclaration& myModelDeclaration;
         static const char* ourName;
-        static std::vector<FieldDeclaration> ourFieldDeclarations;
+        static const std::vector<FieldDeclaration> ourFieldDeclarations;
 
         float myRadius;
     public:
@@ -474,7 +476,7 @@ namespace Object
         }
     };
 
-    std::vector<FieldDeclaration> OmniLight::ourFieldDeclarations =
+    const std::vector<FieldDeclaration> OmniLight::ourFieldDeclarations =
     {
         //{ "myIntensity", FieldType::Integer, 0, 4, false }
         //{ "myIntensity", FieldTypeOf<decltype(Light::myIntensity)>::value, 0, 4, false }
