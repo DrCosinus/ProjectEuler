@@ -56,7 +56,9 @@ namespace Object
     template<typename T>
     struct FieldType : public FieldTypeAbstract
     {
-        FieldType(const std::string& aName, std::size_t anOffset, bool anIsPtr) : FieldTypeAbstract(aName, anOffset, anIsPtr)
+        const static bool ourIsPtr = std::is_pointer<T>::value;
+
+        FieldType(const std::string& aName, std::size_t anOffset) : FieldTypeAbstract(aName, anOffset, ourIsPtr)
         {
         }
         std::string toString(const Object* anObject) const override
@@ -114,7 +116,10 @@ namespace Object
         {
             auto result = std::find_if(begin(myFields), end(myFields), [&aFieldName](auto f) { return aFieldName == f->myName; });
             if (result == end(myFields))
-                return * new FieldType<void>(aFieldName); // leak mais je ne vois pas comment faire autrement pour l'instant
+            {
+                static auto r = std::make_unique<FieldType<void>>(aFieldName); // maintient la dernière occurence vivante... pas genial, en attendant une meilleure idee
+                return *r;
+            }
             else
                 return **result;
         }
@@ -174,15 +179,16 @@ namespace Object
         Light& operator=(Light&&) = delete;
     };
 
-#define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  new FieldType<decltype(_CLASS_NAME_::_FIELD_NAME_)>( #_FIELD_NAME_, offsetof(_CLASS_NAME_, _FIELD_NAME_), std::is_pointer<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value )
+//#define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  new FieldType<decltype(_CLASS_NAME_::_FIELD_NAME_)>( #_FIELD_NAME_, offsetof(_CLASS_NAME_, _FIELD_NAME_), std::is_pointer<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value )
+#define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  new FieldType<decltype(_CLASS_NAME_::_FIELD_NAME_)>( #_FIELD_NAME_, offsetof(_CLASS_NAME_, _FIELD_NAME_) )
 
     const ModelDeclaration& Light::ourModelDeclaration =
     {
         "Light",
         {},
         {
-            //DECLARE_FIELD(Light, myIntensity)
-            new FieldType<decltype(Light::myIntensity)>("myIntensity", offsetof(Light, myIntensity), std::is_pointer<decltype(Light::myIntensity)>::value)
+            DECLARE_FIELD(Light, myIntensity)
+            //new FieldType<decltype(Light::myIntensity)>("myIntensity", offsetof(Light, myIntensity), std::is_pointer<decltype(Light::myIntensity)>::value)
         }
     };
 
