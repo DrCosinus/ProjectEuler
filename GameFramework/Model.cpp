@@ -31,80 +31,74 @@ namespace Object
    
 
     // voir: http://www.codeproject.com/Articles/318690/C-Non-intrusive-enum-class-with-reflection-supp
-    enum class FieldType
+    class Object;
+
+    struct FieldTypeAbstract abstract
     {
-        Integer,
-        Float,
-        String,
+        std::string myName;
+        std::size_t myOffset;
+        bool myIsPtr;
+
+        FieldTypeAbstract(const std::string& aName, std::size_t anOffset, bool anIsPtr) :
+            myName(aName),
+            myOffset(anOffset),
+            myIsPtr(anIsPtr)
+        {
+        }
+        virtual ~FieldTypeAbstract()
+        {
+        }
+
+        virtual std::string toString(const Object* o) const abstract;
+        virtual void fromString(Object* anObject, const std::string& aString) const abstract;
     };
 
     template<typename T>
-    struct FieldTypeOf;
-
-    template<>
-    struct FieldTypeOf < int >
+    struct FieldType : public FieldTypeAbstract
     {
-        static const FieldType value = FieldType::Integer;
-    };
-
-    template<>
-    struct FieldTypeOf < float >
-    {
-        static const FieldType value = FieldType::Float;
-    };
-
-    //typedef std::tuple<FieldTypeOf<int>, FieldTypeOf<float>> AllFieldTypeOf;
-
-    //template<FieldType ftype, typename T>
-    //struct FieldTypeType;
-
-    //template<FieldType ftype>
-    //struct FieldTypeType < ftype, std::tuple<> >
-    //{
-    //    typedef nullptr_t type;
-    //};
-
-    //template<FieldType ftype, typename First, typename... Others>
-    //struct FieldTypeType <ftype, std::tuple<First, Others...> >
-    //{
-    //    typedef typename std::conditional < First::value == ftype, First, typename FieldTypeType<type, std::tuple<Others...>>::type>::type type;
-    //};
-
-    struct FieldDeclaration
-    {
-        const char* myName;
-        FieldType myType;
-        std::size_t myOffset;
-        std::size_t mySize;
-        bool myIsPtr;
-
-        FieldDeclaration(const char* aName, FieldType aType, std::size_t anOffset, std::size_t aSize, bool anIsPtr) :
-            myName(aName),
-            myType(aType),
-            myOffset(anOffset),
-            mySize(aSize),
-            myIsPtr(anIsPtr)
+        FieldType(const std::string& aName, std::size_t anOffset, bool anIsPtr) : FieldTypeAbstract(aName, anOffset, anIsPtr)
         {
-            std::cout << "Construct FieldDeclaration " << myName << std::endl;
         }
-        //FieldDeclaration(const FieldDeclaration&) = delete;
-        //FieldDeclaration(FieldDeclaration&&) = default;
+        std::string toString(const Object* anObject) const override
+        {
+            std::ostringstream oss;
+            oss << *reinterpret_cast<const T*>(reinterpret_cast<const char*>(anObject)+myOffset);
+            return oss.str();
+        }
+        void fromString(Object* anObject, const std::string& aString) const override
+        {
+            std::istringstream iss(aString);
+            iss >> *reinterpret_cast<T*>(reinterpret_cast<char*>(anObject)+myOffset);
+        }
+
+        FieldType(const FieldType&) = delete;
+        FieldType(FieldType&&) = delete;
+        FieldType& operator= (const FieldType&) = delete;
+        FieldType& operator= (FieldType&&) = delete;
     };
 
-    //template<std::size_t N>
-    //struct FieldArrayDeclaration : public FieldDeclaration
-    //{
-    //    const static std::size_t myRank = N;
-    //    std::array<std::size_t, N> myDimensions; // vide si ça n'est pas un tableau
-    //};
+    template<>
+    struct FieldType<void> : public FieldTypeAbstract
+    {
+        FieldType(const std::string& aName) : FieldTypeAbstract(aName, 0, false)
+        {
+        }
+        std::string toString(const Object*) const override;
+        void fromString(Object* anObject, const std::string&) const override;
+
+        FieldType(const FieldType&) = delete;
+        FieldType(FieldType&&) = delete;
+        FieldType& operator= (const FieldType&) = delete;
+        FieldType& operator= (FieldType&&) = delete;
+    };
 
     struct ModelDeclaration
     {
         const char* myName;
         const std::vector<const ModelDeclaration*> myBases;
-        const std::vector<const FieldDeclaration> myFields;
+        const std::vector<const FieldTypeAbstract*> myFields;
 
-        ModelDeclaration(const char* aName, std::vector<const ModelDeclaration*>&& someBases, std::vector<const FieldDeclaration>&& someFieldDeclarations) :
+        ModelDeclaration(const char* aName, std::vector<const ModelDeclaration*>&& someBases, std::vector<const FieldTypeAbstract*>&& someFieldDeclarations) :
             myName(aName),
             myBases(someBases),
             myFields(someFieldDeclarations)
@@ -115,6 +109,15 @@ namespace Object
         ModelDeclaration(ModelDeclaration&& anOtherModelDeclaration) = delete;
         ModelDeclaration& operator=(const ModelDeclaration& anOtherModelDeclaration) = delete;
         ModelDeclaration& operator=(ModelDeclaration&& anOtherModelDeclaration) = delete;
+
+        const FieldTypeAbstract& operator[](const std::string& aFieldName) const
+        {
+            auto result = std::find_if(begin(myFields), end(myFields), [&aFieldName](auto f) { return aFieldName == f->myName; });
+            if (result == end(myFields))
+                return * new FieldType<void>(aFieldName); // leak mais je ne vois pas comment faire autrement pour l'instant
+            else
+                return **result;
+        }
     };
 
     class Object abstract
@@ -131,7 +134,24 @@ namespace Object
     public:
         const std::string& name() const { return myName; }
         void name(const std::string& aName) { myName = aName; }
+
+        // o->myModelDeclaration.myFields[1]->fromString(o, "1972");
+
     };
+
+
+    std::string FieldType<void>::toString(const Object* anObject) const
+    {
+        std::cout << "toString: No field " << myName << " on " << anObject->name() << "(" << anObject->myModelDeclaration.myName << ")" << std::endl;
+        return "unknownField";
+    }
+    void FieldType<void>::fromString(Object* anObject, const std::string&) const
+    {
+        std::cout << "fromString: No field " << myName << " on " << anObject->name() << "(" << anObject->myModelDeclaration.myName << ")" << std::endl;
+    }
+
+
+
 
     class Light : public Object
     {
@@ -154,14 +174,15 @@ namespace Object
         Light& operator=(Light&&) = delete;
     };
 
-#define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  { #_FIELD_NAME_, FieldTypeOf<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value, offsetof(_CLASS_NAME_, _FIELD_NAME_), sizeof(_CLASS_NAME_::_FIELD_NAME_), std::is_pointer<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value }
+#define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  new FieldType<decltype(_CLASS_NAME_::_FIELD_NAME_)>( #_FIELD_NAME_, offsetof(_CLASS_NAME_, _FIELD_NAME_), std::is_pointer<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value )
 
     const ModelDeclaration& Light::ourModelDeclaration =
     {
         "Light",
         {},
         {
-            DECLARE_FIELD(Light, myIntensity)
+            //DECLARE_FIELD(Light, myIntensity)
+            new FieldType<decltype(Light::myIntensity)>("myIntensity", offsetof(Light, myIntensity), std::is_pointer<decltype(Light::myIntensity)>::value)
         }
     };
 
@@ -187,7 +208,6 @@ namespace Object
             &Light::ourModelDeclaration
         },
         {
-            //DECLARE_FIELD(OmniLight, myIntensity),
             DECLARE_FIELD(OmniLight, myRadius),
             DECLARE_FIELD(OmniLight, myFoo)
         }
@@ -200,30 +220,11 @@ void Dump(const Object::Object* anObject, const Object::ModelDeclaration& md)
     {
         Dump(anObject, *x);
     }
-    for (auto x : md.myFields)
+    for (auto& x : md.myFields)
     {
-        std::cout << x.myName << " ";
-        switch (x.myType)
-        {
-            case Object::FieldType::Float:
-            {
-                auto y = *(float*)(((char*)anObject) + x.myOffset);
-                std::cout << y;
-            }
-            break;
-            case Object::FieldType::Integer:
-            {
-                auto y = *(int*)(((char*)anObject) + x.myOffset);
-                std::cout << y;
-            }
-                break;
-            case Object::FieldType::String:
-            {
-                auto y = (char*)*(int*)(((char*)anObject) + x.myOffset);
-                std::cout << y;
-            }
-                break;
-        }
+        std::cout << x->myName << " ";
+
+        std::cout << x->toString(anObject);
 
         std::cout << " (from '" << md.myName << "')" << std::endl;
     }
@@ -238,6 +239,9 @@ void NewTest()
 {
     auto l = new Object::Light(42.7f);
     auto o = new Object::OmniLight(509.13f, 17.8f);
+
+    o->myModelDeclaration["myRadiusX"].fromString(o, "1972");
+    o->myModelDeclaration["myRadius"].fromString(o, "1977");
 
     Dump(l);
     Dump(o);
