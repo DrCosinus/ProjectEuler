@@ -31,109 +31,20 @@ namespace Object
    
 
     // voir: http://www.codeproject.com/Articles/318690/C-Non-intrusive-enum-class-with-reflection-supp
-    class Object;
 
-    struct FieldTypeAbstract abstract
+    class Serializer
     {
-        std::string myName;
-        std::size_t myOffset;
-        bool myIsPtr;
-
-        FieldTypeAbstract(const std::string& aName, std::size_t anOffset, bool anIsPtr) :
-            myName(aName),
-            myOffset(anOffset),
-            myIsPtr(anIsPtr)
-        {
-        }
-        virtual ~FieldTypeAbstract()
-        {
-        }
-
-        virtual std::string toString(const Object* o) const abstract;
-        virtual void fromString(Object* anObject, const std::string& aString) const abstract;
+    public:
+        template<typename T> void operator()(T& aValue, char* aName);
     };
 
-    template<typename T>
-    struct FieldType : public FieldTypeAbstract
-    {
-        const static bool ourIsPtr = std::is_pointer<T>::value;
-
-        FieldType(const std::string& aName, std::size_t anOffset) : FieldTypeAbstract(aName, anOffset, ourIsPtr)
-        {
-        }
-        std::string toString(const Object* anObject) const override
-        {
-            std::ostringstream oss;
-            oss << *reinterpret_cast<const T*>(reinterpret_cast<const char*>(anObject)+myOffset);
-            return oss.str();
-        }
-        void fromString(Object* anObject, const std::string& aString) const override
-        {
-            std::istringstream iss(aString);
-            iss >> *reinterpret_cast<T*>(reinterpret_cast<char*>(anObject)+myOffset);
-        }
-
-        FieldType(const FieldType&) = delete;
-        FieldType(FieldType&&) = delete;
-        FieldType& operator= (const FieldType&) = delete;
-        FieldType& operator= (FieldType&&) = delete;
-    };
-
-    template<>
-    struct FieldType<void> : public FieldTypeAbstract
-    {
-        FieldType(const std::string& aName) : FieldTypeAbstract(aName, 0, false)
-        {
-        }
-        std::string toString(const Object*) const override;
-        void fromString(Object* anObject, const std::string&) const override;
-
-        FieldType(const FieldType&) = delete;
-        FieldType(FieldType&&) = delete;
-        FieldType& operator= (const FieldType&) = delete;
-        FieldType& operator= (FieldType&&) = delete;
-    };
-
-    struct ModelDeclaration
-    {
-        const char* myName;
-        const std::vector<const ModelDeclaration*> myBases;
-        const std::vector<const FieldTypeAbstract*> myFields;
-
-        ModelDeclaration(const char* aName, std::vector<const ModelDeclaration*>&& someBases, std::vector<const FieldTypeAbstract*>&& someFieldDeclarations) :
-            myName(aName),
-            myBases(someBases),
-            myFields(someFieldDeclarations)
-        {
-            std::cout << "Construct ModelDeclaration " << myName << std::endl;
-        }
-        ModelDeclaration(const ModelDeclaration& anOtherModelDeclaration) = delete;
-        ModelDeclaration(ModelDeclaration&& anOtherModelDeclaration) = delete;
-        ModelDeclaration& operator=(const ModelDeclaration& anOtherModelDeclaration) = delete;
-        ModelDeclaration& operator=(ModelDeclaration&& anOtherModelDeclaration) = delete;
-
-        const FieldTypeAbstract& operator[](const std::string& aFieldName) const
-        {
-            auto result = std::find_if(begin(myFields), end(myFields), [&aFieldName](auto f) { return aFieldName == f->myName; });
-            if (result == end(myFields))
-            {
-                static auto r = std::make_unique<FieldType<void>>(aFieldName); // maintient la dernière occurence vivante... pas genial, en attendant une meilleure idee
-                return *r;
-            }
-            else
-                return **result;
-        }
-    };
 
     class Object abstract
     {
         std::string myName;
-    public:
-        const ModelDeclaration& myModelDeclaration;
     protected:
-        Object(std::string&& aName, const ModelDeclaration& aModelDeclaration) :
-            myName(aName),
-            myModelDeclaration(aModelDeclaration)
+        Object(std::string&& aName) :
+            myName(aName)
         {
         }
     public:
@@ -145,30 +56,15 @@ namespace Object
     };
 
 
-    std::string FieldType<void>::toString(const Object* anObject) const
-    {
-        std::cout << "toString: No field " << myName << " on " << anObject->name() << "(" << anObject->myModelDeclaration.myName << ")" << std::endl;
-        return "unknownField";
-    }
-    void FieldType<void>::fromString(Object* anObject, const std::string&) const
-    {
-        std::cout << "fromString: No field " << myName << " on " << anObject->name() << "(" << anObject->myModelDeclaration.myName << ")" << std::endl;
-    }
-
-
-
 
     class Light : public Object
     {
-    protected:
-        static const ModelDeclaration& ourModelDeclaration;
-
     private:
         float myIntensity;
 
     public:
-        Light(float anIntensity, const ModelDeclaration& aModelDeclaration = Light::ourModelDeclaration) :
-            Object("xxx", aModelDeclaration),
+        Light(float anIntensity) :
+            Object("xxx"),
             myIntensity(anIntensity) 
         {
         }
@@ -177,82 +73,125 @@ namespace Object
         Light(Light&&) = delete;
         Light& operator=(const Light&) = delete;
         Light& operator=(Light&&) = delete;
-    };
 
-//#define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  new FieldType<decltype(_CLASS_NAME_::_FIELD_NAME_)>( #_FIELD_NAME_, offsetof(_CLASS_NAME_, _FIELD_NAME_), std::is_pointer<decltype(_CLASS_NAME_::_FIELD_NAME_)>::value )
-#define DECLARE_FIELD(_CLASS_NAME_, _FIELD_NAME_)  new FieldType<decltype(_CLASS_NAME_::_FIELD_NAME_)>( #_FIELD_NAME_, offsetof(_CLASS_NAME_, _FIELD_NAME_) )
-
-    const ModelDeclaration& Light::ourModelDeclaration =
-    {
-        "Light",
-        {},
+        template<typename S>
+        void Serialize(S& aSerializer)
         {
-            DECLARE_FIELD(Light, myIntensity)
-            //new FieldType<decltype(Light::myIntensity)>("myIntensity", offsetof(Light, myIntensity), std::is_pointer<decltype(Light::myIntensity)>::value)
+            aSerializer(myIntensity, "myIntensity");
         }
     };
 
     class OmniLight : public Light
     {
-        static const ModelDeclaration& ourModelDeclaration;
     public:
         float myRadius;
         int myFoo;
     public:
         OmniLight(float anIntensity, float aRadius) : 
-            Light(anIntensity, OmniLight::ourModelDeclaration),
+            Light(anIntensity),
             myRadius(aRadius),
             myFoo(707)
         {
         }
-    };
 
-    const ModelDeclaration& OmniLight::ourModelDeclaration =
-    {
-        "OmniLight",
+        template<typename S>
+        void Serialize(S& aSerializer)
         {
-            &Light::ourModelDeclaration
-        },
-        {
-            DECLARE_FIELD(OmniLight, myRadius),
-            DECLARE_FIELD(OmniLight, myFoo)
+            Light::Serialize(aSerializer);
+            aSerializer(myRadius, "myRadius");
+            aSerializer(myFoo, "myFoo");
         }
     };
 }
 
-void Dump(const Object::Object* anObject, const Object::ModelDeclaration& md)
+struct ConsoleWriter
 {
-    for (auto x : md.myBases)
+    template<typename T>
+    void operator()(T& aValue, const char* aValueName)
     {
-        Dump(anObject, *x);
-    }
-    for (auto& x : md.myFields)
-    {
-        std::cout << x->myName << " ";
+        std::cout << aValueName << " ";
 
-        std::cout << x->toString(anObject);
+        std::cout << aValue;
 
-        std::cout << " (from '" << md.myName << "')" << std::endl;
+        //std::cout << " (from '" << md.myName << "')";
+        
+        std::cout << std::endl;
     }
 };
 
-void Dump(const Object::Object* anObject)
+template<typename T>
+void Dump(Object::T* anObject)
 {
-    Dump(anObject, anObject->myModelDeclaration);
-}
+    anObject->Serialize(ConsoleWriter());
+};
+
+class BaseHolder
+{
+public:
+    virtual ~BaseHolder() {}
+};
+
+template<typename T>
+class HoldData : public BaseHolder
+{
+public:
+    HoldData(const T& aValue) : myValue(aValue) {}
+private:
+    T myValue;
+};
+
+class Variant
+{
+public:
+    template<typename T>
+    Variant(const T& t) : myData(std::make_unique<HoldData<T>>(t)) {}
+    //template<typename T>
+    //T& operator T() { return reinterpret_cast<HoldData<T>>(myData).myValue; }
+private:
+    std::unique_ptr<BaseHolder> myData;
+};
+
+
+struct ValueWriter
+{
+    const void* myValue;
+    const size_t myValueSize;
+    const char* myValueName;
+    const type_info& myTypeInfo;
+
+    template<typename T>
+    ValueWriter(const char* aValueName, const T& aValue)
+        : myValueName(aValueName)
+        , myValue(new T(aValue))
+        , myTypeInfo(typeid(T))
+        , myValueSize(sizeof(T))
+    {
+    }
+    template<typename T>
+    void operator()(T& aValue, const char* aValueName)
+    {
+        if (myTypeInfo==typeid(T) && strcmp(myValueName, aValueName) == 0)
+        {
+            aValue = *(T*)myValue;
+        }
+    }
+
+};
 
 void NewTest()
 {
     auto l = new Object::Light(42.7f);
     auto o = new Object::OmniLight(509.13f, 17.8f);
 
-    o->myModelDeclaration["myRadiusX"].fromString(o, "1972");
-    o->myModelDeclaration["myRadius"].fromString(o, "1977");
+    //o->myModelDeclaration["myRadiusX"].fromString(o, "1972");
+    //o->myModelDeclaration["myRadius"].fromString(o, "1977");
+
+    o->Serialize(ValueWriter("myRadius", 1977.f));
 
     Dump(l);
     Dump(o);
 
-    std::cout << "kilt " << l->myModelDeclaration.myName << " ... " << std::endl;
+    //std::cout << "kilt " << l->myModelDeclaration.myName << " ... " << std::endl;
 }
 
 namespace _
